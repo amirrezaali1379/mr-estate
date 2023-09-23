@@ -11,7 +11,7 @@ class CustomUser(AbstractUser):
         max_length=11, unique=True, validators=[phone_validator,]
     )
     address = models.TextField(null=True, blank=True)
-    is_active = models.BooleanField(default=False)
+    is_phone_verified = models.BooleanField(default=False)
     username = None
 
     objects = CustomUserManager()
