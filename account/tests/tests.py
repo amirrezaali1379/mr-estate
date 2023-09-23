@@ -3,9 +3,11 @@ import pytest
 from django.urls import reverse
 from rest_framework.test import APIClient
 
+from account import exeptions
+
 from .factories import UserFactory
 from account.models import CustomUser
-from account.utils import exeptions, otp
+from account.utils import otp
 
 
 @pytest.mark.django_db

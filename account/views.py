@@ -1,16 +1,20 @@
+from datetime import timedelta
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from rest_framework import status, generics
+from rest_framework import status, generics, permissions
 from django.contrib.auth import get_user_model
+from django.utils import timezone
 from rest_framework_simplejwt.tokens import RefreshToken
 
-from account.serializers import UserSerializer, VerifyUserSerializer, UserUpdateSerializers
+from account.serializers import (UserSerializer,
+                                 VerifyUserSerializer,
+                                 UserUpdateSerializers)
 from account.utils.otp import TOTP
-from account.utils.exeptions import UserExists, TooEarly
 from account.permissions import IsPhoneVerified
+from account.models import OTP
 
 
-class CreateUserView(APIView):
+class OTPRequestView(APIView):
     serializer_class = UserSerializer
     http_method_names = ['post',]
 
@@ -19,47 +23,69 @@ class CreateUserView(APIView):
         serializer.is_valid(raise_exception=True)
         user_model = get_user_model()
         phone_number = request.data.get('phone_number')
-        password = serializer.validated_data.get('password')
-        user = user_model.objects.filter(
-            phone_number=phone_number).first()
-        totp = TOTP()
-        if not user:
-            user = user_model.objects.create(
-                phone_number=phone_number,
-            )
+        user, created = user_model.objects.get_or_create(
+            phone_number=phone_number)
 
-        try:
-            code = totp.generate_otp(user=user)
-        except UserExists:
-            return Response({'detail': 'user with this phone number exists'}, status=status.HTTP_400_BAD_REQUEST)
-        except TooEarly as error:
-            return Response({
-                'detail': error.msg,
-                'remaining_time': error.remaining_seconds,
-            }, status=status.HTTP_425_TOO_EARLY)
+        if not created:
+            try:
+                user_otp = user.otp
+            except OTP.DoesNotExist:
+                user_otp = None
 
-        user.set_password(password)
-        user.save()
-        totp.send_otp(user, code)
+            if user_otp:
+                last_request_time = user_otp.request_time
+                elapsed_time = timezone.now() - last_request_time
+                if elapsed_time < timedelta(minutes=1):
+                    remaining_seconds = 60 - elapsed_time.seconds
+                    return Response(
+                        {
+                            'detail': "Please wait at least one minute before requesting another OTP.",
+                            'remaining_seconds': remaining_seconds
+                        }, status=status.HTTP_425_TOO_EARLY,
+                    )
+
+                user_otp.delete()
+
+        code, secret = TOTP.generate_otp()
+        OTP.objects.create(
+            user=user,
+            secret=secret
+        )
+
+        TOTP.send_otp(phone_number, code)
         refresh = RefreshToken.for_user(user)
 
         return Response({
-            'refresh': str(refresh),
-            'access': str(refresh.access_token),
+            "refresh": str(refresh),
+            "access": str(refresh.access_token),
+            "created": created,
+            "verified": user.is_phone_verified,
         })
 
 
 class VerifyUserView(APIView):
     serializer_class = VerifyUserSerializer
+    permission_classes = [permissions.IsAuthenticated,]
     http_method_names = ['post', ]
 
     def post(self, request, *args, **kwargs):
-        totp = TOTP()
+        try:
+            user_otp = request.user.otp
+        except OTP.DoesNotExist:
+            user_otp = None
+
+        if not user_otp:
+            return Response(
+                {
+                    'detail': 'no request available'
+                }, status=status.HTTP_400_BAD_REQUEST
+            )
+
         serializer = self.serializer_class(data=request.data)
         serializer.is_valid(raise_exception=True)
         code = serializer.validated_data['code']
 
-        if totp.validate_otp(user=request.user, code=code):
+        if TOTP.validate_otp(user_otp.secret, code):
             request.user.is_phone_verified = True
             request.user.save()
 
