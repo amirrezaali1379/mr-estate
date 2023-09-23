@@ -27,7 +27,6 @@ class UserSerializer(serializers.Serializer):
 
 
 class VerifyUserSerializer(serializers.Serializer):
-    phone_number = serializers.CharField()
     code = serializers.CharField()
 
 

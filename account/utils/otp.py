@@ -11,7 +11,7 @@ from account.models import OTP
 
 class TOTP:
     def generate_otp(self, user: AbstractBaseUser) -> str:
-        if user.is_active:
+        if user.is_phone_verified:
             raise UserExists()
 
         otp, created = OTP.objects.get_or_create(user=user)
