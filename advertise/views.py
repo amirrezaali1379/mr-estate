@@ -14,6 +14,7 @@ from advertise.serializers import (
 from advertise.filters import AdvertiseFilter
 from advertise.permissions import IsImageOwner, IsOwnerOrReadOnly, IsProfileComplete
 from advertise.models import AdvertiseImage, Advertise
+from account.permissions import IsPhoneVerified
 
 
 class AdvertiseViewSet(viewsets.ModelViewSet):
@@ -23,7 +24,8 @@ class AdvertiseViewSet(viewsets.ModelViewSet):
     ordering_fields = ['created', 'price']
     pagination_class = PageNumberPagination
     pagination_class.page_size = 30
-    permission_classes = [IsOwnerOrReadOnly, IsProfileComplete, ]
+    permission_classes = [IsPhoneVerified,
+                          IsOwnerOrReadOnly, IsProfileComplete, ]
 
     def perform_create(self, serializer):
         with transaction.atomic():
@@ -69,7 +71,8 @@ class AdvertiseViewSet(viewsets.ModelViewSet):
 
 class DeleteImageView(generics.DestroyAPIView):
     serializer_class = AdvertiseImageSerializer
-    permission_classes = [IsAuthenticated, IsImageOwner, IsProfileComplete, ]
+    permission_classes = [IsPhoneVerified,
+                          IsAuthenticated, IsImageOwner, IsProfileComplete, ]
 
     def get_queryset(self):
         return AdvertiseImage.objects.filter(advertise__user=self.request.user)
@@ -83,16 +86,15 @@ class DeleteImageView(generics.DestroyAPIView):
 
 class CreateImageView(generics.CreateAPIView):
     serializer_class = AdvertiseImageSerializer
-    permission_classes = [IsAuthenticated, IsProfileComplete, ]
+    permission_classes = [IsPhoneVerified,
+                          IsAuthenticated, IsProfileComplete, ]
 
     def perform_create(self, serializer):
-        print(self.kwargs)
-        advertise_id = self.request.data.get('advertise_id')
-        advertise = Advertise.objects.get(id=advertise_id)
+        advertise = Advertise.objects.get(id=self.kwargs.get('pk'))
         if advertise.images.count() == 3:
             raise ValidationError(
-                'you can not upload more than 3 images for one add')
+                {'detail': 'you can not upload more than 3 images for one add'})
         if advertise.user == self.request.user:
             serializer.save(advertise=advertise)
             return
-        raise ValidationError('ad doesn\'t belong to you')
+        raise ValidationError({'detail': 'ad doesn\'t belong to you'})
