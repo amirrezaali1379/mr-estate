@@ -31,10 +31,10 @@ class CreateUserView(APIView):
         try:
             code = totp.generate_otp(user=user)
         except UserExists:
-            return Response({'error': 'user with this phone number exists'}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({'detail': 'user with this phone number exists'}, status=status.HTTP_400_BAD_REQUEST)
         except TooEarly as error:
             return Response({
-                'error': error.msg,
+                'detail': error.msg,
                 'remaining_time': error.remaining_seconds,
             }, status=status.HTTP_425_TOO_EARLY)
 

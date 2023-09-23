@@ -38,7 +38,7 @@ class AdvertiseViewSet(viewsets.ModelViewSet):
 
             if len(files) > 3:
                 raise ValidationError(
-                    {'error': 'you can not upload more than 3 images'})
+                    {'detail': 'you can not upload more than 3 images'})
 
             for file in files:
                 image_serializer = AdvertiseImageSerializer(
@@ -47,7 +47,7 @@ class AdvertiseViewSet(viewsets.ModelViewSet):
                     image_serializer.save(advertise=advertise)
                 else:
                     raise ValidationError(
-                        {'error': 'image sent is not valid'})
+                        {'detail': 'image sent is not valid'})
 
     def get_serializer(self, *args, **kwargs):
         if self.action == 'list':
@@ -80,7 +80,7 @@ class DeleteImageView(generics.DestroyAPIView):
     def perform_destroy(self, instance):
         if instance.advertise.images.count() <= 1:
             raise ValidationError(
-                {'error': 'you can\'t delete all images related to an ad'})
+                {'detail': 'you can\'t delete all images related to an ad'})
         return super().perform_destroy(instance)
 
 
