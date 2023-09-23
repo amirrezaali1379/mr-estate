@@ -24,8 +24,18 @@ class AdvertiseViewSet(viewsets.ModelViewSet):
     ordering_fields = ['created', 'price']
     pagination_class = PageNumberPagination
     pagination_class.page_size = 30
-    permission_classes = [IsPhoneVerified,
-                          IsOwnerOrReadOnly, IsProfileComplete, ]
+    permission_classes = [IsOwnerOrReadOnly, IsProfileComplete, ]
+
+    def get_permissions(self):
+        permission_classes = list(super().get_permissions())
+
+        if self.action not in ['list', 'retrieve', 'get']:
+            permission_classes.append(IsPhoneVerified())
+
+        return permission_classes
+
+    def check_permissions(self, request):
+        return super().check_permissions(request)
 
     def perform_create(self, serializer):
         with transaction.atomic():
